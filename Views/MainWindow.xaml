@@ -3,57 +3,107 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:BetterUnreleased"
         xmlns:models="clr-namespace:BetterUnreleased.Models"
-        Title="Music Player" Height="600" Width="800">
+        Title="Better Unreleased" Height="600" Width="800">
   <Window.Resources>
     <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
     <local:SecondsToMinuteConverter x:Key="SecondsToMinuteConverter"/>
+    <local:UnreleasedToVisibilityConverter x:Key="UnreleasedToVisibilityConverter"/>
   </Window.Resources>
   <Grid>
-    <Grid.RowDefinitions>
-      <RowDefinition Height="*"/>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="100"/>
-    </Grid.RowDefinitions>
-
-    <!-- ListView for Songs -->
-    <ListView x:Name="SongList" Grid.Row="0" AllowDrop="True">
-      <ListView.ItemTemplate>
-        <DataTemplate DataType="{x:Type models:Song}">
-          <Border BorderThickness="1" BorderBrush="Gray" Margin="3" Padding="5">
-            <DockPanel>
-              <Image Width="60" Height="60" Margin="0,0,10,0"
-                     Source="{Binding ThumbnailPath}"
-                     Visibility="{Binding ThumbnailPath, Converter={StaticResource NullToVisibilityConverter}}"
-                     DockPanel.Dock="Left"/>
-              <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="Bold"/>
-                <TextBlock Text="{Binding Artist}" FontSize="14"/>
-                <TextBlock Text="{Binding Duration, Converter={StaticResource SecondsToMinuteConverter}}" FontSize="12" Foreground="Gray"/>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="200"/>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+    
+    <!-- Playlists panel -->
+    <StackPanel Grid.Column="0" Margin="10">
+      <Button Content="+" Height="50" Width="50" Click="CreatePlaylist_Click" ToolTip="Create Playlist"/>
+      <ListBox x:Name="PlaylistsGrid" SelectionChanged="PlaylistsGrid_SelectionChanged">
+        <ListBox.ItemTemplate>
+          <DataTemplate DataType="{x:Type models:Playlist}">
+            <Border BorderBrush="Gray" BorderThickness="1" Margin="5" Padding="5" 
+                    HorizontalAlignment="Center" Width="180">
+              <StackPanel>
+                <Image Source="{Binding ThumbnailPath}" Height="60" Width="60" 
+                       Margin="0,5" HorizontalAlignment="Center"/>
+                <TextBlock Text="{Binding Title}" HorizontalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                  <Button Content="✎" FontSize="16" Margin="5,0" 
+                          Click="EditPlaylist_Click" Tag="{Binding}" 
+                          ToolTip="Edit"/>
+                  <Button Content="🗑" FontSize="16" Margin="5,0" 
+                          Click="DeletePlaylist_Click" Tag="{Binding}"
+                          Visibility="{Binding Id, Converter={StaticResource UnreleasedToVisibilityConverter}}"
+                          ToolTip="Delete"/>
+                </StackPanel>
               </StackPanel>
-              <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
-                <Button Content="✎" Margin="5,0" Click="EditSong_Click" ToolTip="Edit"/>
-                <Button Content="🗑" Margin="5,0" Click="DeleteSong_Click" ToolTip="Delete"/>
-              </StackPanel>
-            </DockPanel>
-          </Border>
-        </DataTemplate>
-      </ListView.ItemTemplate>
-    </ListView>
-
-    <TextBlock x:Name="CurrentSongTitle" Grid.Row="1" Margin="10" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
-
-    <Slider x:Name="ProgressSlider" Grid.Row="2" Margin="10,10,10,0" Minimum="0" Maximum="100" ValueChanged="ProgressSlider_ValueChanged"/>
-
-    <TextBlock x:Name="CurrentTime" Grid.Row="3" Margin="10,0,10,10" FontSize="12" HorizontalAlignment="Center"/>
-
-    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
-      <Button x:Name="BackButton" Content="⏮" FontSize="20" Width="50" Margin="5,0" Click="BackButton_Click" ToolTip="Previous"/>
-      <Button x:Name="TogglePlayPauseButton" Content="▶" FontSize="20" Width="50" Margin="5,0" Click="TogglePlayPause_Click" ToolTip="Play/Pause"/>
-      <Button x:Name="SkipButton" Content="⏭" FontSize="20" Width="50" Margin="5,0" Click="SkipButton_Click" ToolTip="Next"/>
-      <Button x:Name="RepeatButton" Content="🔁" FontSize="20" Width="50" Margin="5,0" Click="RepeatButton_Click" ToolTip="Repeat Off"/>
-      <Button x:Name="AddMusicButton" Content="+" FontSize="20" Width="50" Margin="5,0" Click="AddMusicButton_Click" ToolTip="Add Music"/>
+            </Border>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
     </StackPanel>
+    
+    <!-- Your existing songs and media player UI in Grid.Column="1" -->
+    <Grid Grid.Column="1">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="100"/>
+      </Grid.RowDefinitions>
+
+      <!-- ListView for Songs -->
+      <ListView x:Name="SongList" Grid.Row="0" AllowDrop="True" 
+                PreviewMouseLeftButtonDown="SongList_PreviewMouseLeftButtonDown">
+        <ListView.ItemContainerStyle>
+          <Style TargetType="ListViewItem">
+            <Setter Property="AllowDrop" Value="True"/>
+            <EventSetter Event="PreviewMouseMove" Handler="ListViewItem_PreviewMouseMove"/>
+            <EventSetter Event="Drop" Handler="ListViewItem_Drop"/>
+          </Style>
+        </ListView.ItemContainerStyle>
+        <ListView.ItemTemplate>
+          <DataTemplate DataType="{x:Type models:Song}">
+            <Border BorderThickness="1" BorderBrush="Gray" Margin="3" Padding="5" 
+                    Width="300"> 
+              <DockPanel>
+                <Image Width="80" Height="80" Margin="0,0,10,0"
+                       Source="{Binding ThumbnailPath}"
+                       Visibility="{Binding ThumbnailPath, Converter={StaticResource NullToVisibilityConverter}}"
+                       DockPanel.Dock="Left"/>
+                <StackPanel VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="Bold"/>
+                  <TextBlock Text="{Binding Artist}" FontSize="14"/>
+                  <TextBlock Text="{Binding Duration, Converter={StaticResource SecondsToMinuteConverter}}" 
+                             FontSize="12" Foreground="Gray"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" DockPanel.Dock="Right">
+                  <Button Content="✎" Margin="5,0" Click="EditSong_Click" ToolTip="Edit"/>
+                  <Button Content="🗑" Margin="5,0" Click="DeleteSong_Click" ToolTip="Delete"/>
+                </StackPanel>
+              </DockPanel>
+            </Border>
+          </DataTemplate>
+        </ListView.ItemTemplate>
+      </ListView>
+
+      <TextBlock x:Name="CurrentSongTitle" Grid.Row="1" Margin="10" FontSize="16" FontWeight="Bold" HorizontalAlignment="Center"/>
+
+      <Slider x:Name="ProgressSlider" Grid.Row="2" Margin="10,10,10,0" Minimum="0" Maximum="100" ValueChanged="ProgressSlider_ValueChanged"/>
+
+      <TextBlock x:Name="CurrentTime" Grid.Row="3" Margin="10,0,10,10" FontSize="12" HorizontalAlignment="Center"/>
+
+<StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
+  <Button x:Name="RepeatButton" Content="🔁" FontSize="20" Width="50" Margin="15,0" Click="RepeatButton_Click" ToolTip="Repeat Off"/>
+    <StackPanel Orientation="Horizontal" Margin="20,0">
+    <Button x:Name="BackButton" Content="⏮" FontSize="20" Width="50" Margin="5,0" Click="BackButton_Click" ToolTip="Previous"/>
+    <Button x:Name="TogglePlayPauseButton" Content="▶" FontSize="20" Width="50" Margin="5,0" Click="TogglePlayPause_Click" ToolTip="Play/Pause"/>
+    <Button x:Name="SkipButton" Content="⏭" FontSize="20" Width="50" Margin="5,0" Click="SkipButton_Click" ToolTip="Next"/>
+  </StackPanel>
+    <Button x:Name="ShuffleButton" Content="🔀" FontSize="20" Width="50" Margin="15,0" Click="ShuffleButton_Click" ToolTip="Shuffle Playlist"/>
+  <Button x:Name="AddMusicButton" Content="+" FontSize="20" Width="50" Margin="15,0" Click="AddMusicButton_Click" ToolTip="Add Music"/>
+</StackPanel>   
+ </Grid>
   </Grid>
 </Window>

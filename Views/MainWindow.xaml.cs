@@ -10,6 +10,7 @@ using BetterUnreleased.Views;
 using Microsoft.Win32;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Input;  
 using TagLib;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,16 +26,21 @@ namespace BetterUnreleased
         private enum RepeatMode { None, All, SingleTrack }
         private RepeatMode currentRepeatMode = RepeatMode.None;
 
+        private Point startPoint;
+        private bool isDragging = false;
+
         public MainWindow()
         {
             try
             {
                 InitializeComponent();
+                LoadPlaylists();
                 LoadSongs();
                 SongList.Drop += SongList_Drop;
                 SongList.DragEnter += SongList_DragEnter;
                 mediaPlayer.MediaEnded += MediaPlayer_MediaEnded;
                 progressTimer.Tick += ProgressTimer_Tick;
+                SongList.PreviewMouseLeftButtonDown += SongList_PreviewMouseLeftButtonDown;
             }
             catch (Exception ex)
             {
@@ -46,12 +52,64 @@ namespace BetterUnreleased
         {
             try
             {
-                var songs = db.Songs.OrderBy(s => s.Title).ToList();
+                var songs = db.Songs.ToList();
+                foreach (var song in songs)
+                {
+                    if (string.IsNullOrEmpty(song.FilePath) && db.Playlists.Find(song.PlaylistId) is Playlist pl && !string.IsNullOrEmpty(pl.ThumbnailPath))
+                    {
+                        song.FilePath = pl.ThumbnailPath;
+                    }
+                }
                 SongList.ItemsSource = songs;
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Error loading songs: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void LoadPlaylists()
+        {
+            var playlists = db.Playlists.OrderBy(p => p.Title).ToList();
+            PlaylistsGrid.ItemsSource = playlists;
+        }
+
+        private void CreatePlaylist_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new AddPlaylistDialog();
+            if (dlg.ShowDialog() == true && dlg.CreatedPlaylist != null)
+            {
+                db.Playlists.Add(dlg.CreatedPlaylist);
+                db.SaveChanges();
+                LoadPlaylists();
+            }
+        }
+
+        private void EditPlaylist_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as Button)?.Tag is Playlist playlist)
+            {
+                var dlg = new EditPlaylistDialog(playlist);
+                if (dlg.ShowDialog() == true)
+                {
+                    db.SaveChanges();
+                    LoadPlaylists();
+                }
+            }
+        }
+
+        private void DeletePlaylist_Click(object sender, RoutedEventArgs e)
+        {
+            if ((sender as Button)?.Tag is Playlist playlist)
+            {
+                if (playlist.Id == 1)
+                {
+                    MessageBox.Show("The Unreleased playlist cannot be deleted.");
+                    return;
+                }
+                db.Playlists.Remove(playlist);
+                db.SaveChanges();
+                LoadPlaylists();
             }
         }
 
@@ -106,6 +164,31 @@ namespace BetterUnreleased
                 catch (Exception ex)
                 {
                     MessageBox.Show($"Error adding songs: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            else if (e.Data.GetData(typeof(Song)) is Song droppedSong)
+            {
+                var targetPosition = e.GetPosition(SongList);
+                var targetItem = SongList.InputHitTest(targetPosition) as UIElement;
+                if (targetItem != null)
+                {
+                    var targetSong = (targetItem as FrameworkElement)?.DataContext as Song;
+                    if (targetSong != null && droppedSong != targetSong)
+                    {
+                        var songs = (SongList.ItemsSource as List<Song>) ?? new List<Song>();
+                        int removedIdx = songs.IndexOf(droppedSong);
+                        int targetIdx = songs.IndexOf(targetSong);
+
+                        if (removedIdx != -1 && targetIdx != -1)
+                        {
+                            songs.RemoveAt(removedIdx);
+                            songs.Insert(targetIdx, droppedSong);
+                            
+                            SongList.ItemsSource = null;
+                            SongList.ItemsSource = songs;
+                            SongList.SelectedItem = droppedSong;
+                        }
+                    }
                 }
             }
         }
@@ -354,6 +437,104 @@ namespace BetterUnreleased
                         mediaPlayer.Stop();
                     }
                     break;
+            }
+        }
+
+        private void ShuffleButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (PlaylistsGrid.SelectedItem is Playlist selectedPlaylist)
+            {
+                var shuffledSongs = db.Songs
+                    .Where(s => s.PlaylistId == selectedPlaylist.Id)
+                    .OrderBy(s => Guid.NewGuid())
+                    .ToList();
+                
+                SongList.ItemsSource = shuffledSongs;
+
+                if (shuffledSongs.Any())
+                {
+                    CurrentSongTitle.Text = shuffledSongs.First().Title;
+                    mediaPlayer.Open(new Uri(shuffledSongs.First().FilePath));
+                }
+            }
+            else
+            {
+                MessageBox.Show("Please select a playlist to shuffle.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private void PlaylistsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (PlaylistsGrid.SelectedItem is Playlist selectedPlaylist)
+            {
+                var playlistSongs = db.Songs
+                    .Where(s => s.PlaylistId == selectedPlaylist.Id)
+                    .ToList();
+
+                foreach (var song in playlistSongs)
+                {
+                    if (string.IsNullOrEmpty(song.ThumbnailPath) && !string.IsNullOrEmpty(selectedPlaylist.ThumbnailPath))
+                    {
+                        song.ThumbnailPath = selectedPlaylist.ThumbnailPath;
+                    }
+                }
+
+                SongList.ItemsSource = playlistSongs;
+            }
+        }
+
+        private void SongList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            startPoint = e.GetPosition(null);
+        }
+
+        private void ListViewItem_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed && !isDragging)
+            {
+                Point position = e.GetPosition(null);
+                
+                if (Math.Abs(position.X - startPoint.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                    Math.Abs(position.Y - startPoint.Y) > SystemParameters.MinimumVerticalDragDistance)
+                {
+                    if (sender is ListViewItem item)
+                    {
+                        var song = item.DataContext as Song;
+                        if (song != null)
+                        {
+                            isDragging = true;
+                            DragDrop.DoDragDrop(item, song, DragDropEffects.Move);
+                            isDragging = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        private void ListViewItem_Drop(object sender, DragEventArgs e)
+        {
+            if (sender is ListViewItem targetItem)
+            {
+                var droppedSong = e.Data.GetData(typeof(Song)) as Song;
+                var targetSong = targetItem.DataContext as Song;
+                
+                if (droppedSong != null && targetSong != null && droppedSong != targetSong)
+                {
+                    var songs = (SongList.ItemsSource as List<Song>) ?? new List<Song>();
+                    int removedIdx = songs.IndexOf(droppedSong);
+                    int targetIdx = songs.IndexOf(targetSong);
+
+                    if (removedIdx != -1 && targetIdx != -1)
+                    {
+                        songs.RemoveAt(removedIdx);
+                        songs.Insert(targetIdx, droppedSong);
+                        
+                        SongList.ItemsSource = null;
+                        SongList.ItemsSource = songs;
+                        
+                        SongList.SelectedItem = droppedSong;
+                    }
+                }
             }
         }
     }
