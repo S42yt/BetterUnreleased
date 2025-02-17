@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\musa.bostanci\\better-unreleased\\better-unreleased\\better-unreleased.csproj": {}
+    "C:\\Users\\musa.bostanci\\better-unreleased\\better-unreleased.csproj": {}
   },
   "projects": {
-    "C:\\Users\\musa.bostanci\\better-unreleased\\better-unreleased\\better-unreleased.csproj": {
+    "C:\\Users\\musa.bostanci\\better-unreleased\\better-unreleased.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\musa.bostanci\\better-unreleased\\better-unreleased\\better-unreleased.csproj",
+        "projectUniqueName": "C:\\Users\\musa.bostanci\\better-unreleased\\better-unreleased.csproj",
         "projectName": "better-unreleased",
-        "projectPath": "C:\\Users\\musa.bostanci\\better-unreleased\\better-unreleased\\better-unreleased.csproj",
+        "projectPath": "C:\\Users\\musa.bostanci\\better-unreleased\\better-unreleased.csproj",
         "packagesPath": "C:\\Users\\musa.bostanci\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\musa.bostanci\\better-unreleased\\better-unreleased\\obj\\",
+        "outputPath": "C:\\Users\\musa.bostanci\\better-unreleased\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\musa.bostanci\\AppData\\Roaming\\NuGet\\NuGet.Config"
