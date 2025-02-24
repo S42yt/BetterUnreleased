@@ -418,6 +418,12 @@ namespace BetterUnreleased
 
         private void AddMusicButton_Click(object sender, RoutedEventArgs e)
         {
+            if (PlaylistsGrid.SelectedItem is not Playlist selectedPlaylist)
+            {
+                MessageBox.Show("Please select a playlist first.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
             var dialog = new AddMusicDialog();
             if (dialog.ShowDialog() == true && dialog.CreatedSong != null)
             {
@@ -426,10 +432,21 @@ namespace BetterUnreleased
                     using var transaction = db.Database.BeginTransaction();
                     try
                     {
+                        // Copy the file to the selected playlist's folder
+                        string newFilePath = Helpers.FileManager.CopyMusicFileToPlaylist(
+                            dialog.CreatedSong.FilePath, 
+                            selectedPlaylist.Id);
+                        
+                        // Update the song with the new file path and playlist ID
+                        dialog.CreatedSong.FilePath = newFilePath;
+                        dialog.CreatedSong.PlaylistId = selectedPlaylist.Id;
+                        
                         db.Songs.Add(dialog.CreatedSong);
                         db.SaveChanges();
                         transaction.Commit();
-                        LoadSongs();
+                        
+                        // Refresh the song list to show the new song
+                        PlaylistsGrid_SelectionChanged(PlaylistsGrid, null);
                     }
                     catch (Exception ex)
                     {

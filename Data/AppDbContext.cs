@@ -14,10 +14,26 @@ namespace BetterUnreleased.Data
         {
             FileManager.GetBaseFolder();
             
-            Database.EnsureCreated();
-            if (Database.GetPendingMigrations().Any())
+            try
             {
-                Database.Migrate();
+                if (!Database.CanConnect())
+                {
+                    Database.Migrate();
+                }
+                else if (Database.GetPendingMigrations().Any())
+                {
+                    Database.Migrate();
+                }
+
+                if (!Playlists.Any())
+                {
+                    Playlists.Add(new Playlist { Id = 1, Title = "Unreleased", ThumbnailPath = "" });
+                    SaveChanges();
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception($"Failed to initialize database: {ex.Message}", ex);
             }
         }
 
