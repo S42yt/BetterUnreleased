@@ -13,6 +13,12 @@ namespace BetterUnreleased.Data
         public AppDbContext()
         {
             FileManager.GetBaseFolder();
+            
+            Database.EnsureCreated();
+            if (Database.GetPendingMigrations().Any())
+            {
+                Database.Migrate();
+            }
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

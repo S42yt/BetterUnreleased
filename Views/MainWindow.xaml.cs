@@ -135,6 +135,12 @@ namespace BetterUnreleased
             {
                 try 
                 {
+                    if (PlaylistsGrid.SelectedItem is not Playlist selectedPlaylist)
+                    {
+                        MessageBox.Show("Please select a playlist first.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+
                     string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
                     if (files == null) return;
 
@@ -154,9 +160,9 @@ namespace BetterUnreleased
                                 Artist = !string.IsNullOrEmpty(tagFile.Tag.FirstPerformer) 
                                     ? tagFile.Tag.FirstPerformer.Trim() 
                                     : "Unknown Artist",
-                                // Copy the file into the corresponding playlist folder.
-                                FilePath = Helpers.FileManager.CopyMusicFileToPlaylist(file, /*playlistId*/ 1),
-                                Duration = tagFile.Properties.Duration.TotalSeconds
+                                FilePath = Helpers.FileManager.CopyMusicFileToPlaylist(file, selectedPlaylist.Id),
+                                Duration = tagFile.Properties.Duration.TotalSeconds,
+                                PlaylistId = selectedPlaylist.Id
                             };
 
                             if (tagFile.Tag.Pictures.Length > 0)

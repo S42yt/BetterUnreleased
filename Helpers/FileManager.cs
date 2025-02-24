@@ -28,10 +28,23 @@ namespace BetterUnreleased.Helpers
 
         public static string CopyMusicFileToPlaylist(string sourceFile, int playlistId)
         {
+            if (!File.Exists(sourceFile))
+                throw new FileNotFoundException("Source music file not found", sourceFile);
+
             string playlistFolder = GetPlaylistFolder(playlistId);
             string fileName = Path.GetFileName(sourceFile);
             string destination = Path.Combine(playlistFolder, fileName);
-            File.Copy(sourceFile, destination, true);
+
+            int counter = 1;
+            string fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+            string extension = Path.GetExtension(fileName);
+            while (File.Exists(destination))
+            {
+                fileName = $"{fileNameWithoutExt}_{counter++}{extension}";
+                destination = Path.Combine(playlistFolder, fileName);
+            }
+
+            File.Copy(sourceFile, destination, false);
             return destination;
         }
     }
