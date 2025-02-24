@@ -24,17 +24,21 @@
             <Border BorderBrush="Gray" BorderThickness="1" Margin="5" Padding="5" 
                     HorizontalAlignment="Center" Width="180">
               <StackPanel>
-                <Image Source="{Binding ThumbnailPath}" Height="60" Width="60" 
-                       Margin="0,5" HorizontalAlignment="Center"/>
+                <Grid Height="100" Width="120">
+                  <Image Source="{Binding ThumbnailPath, 
+                                          TargetNullValue='pack://application:,,,/Assets/placeholder.png',
+                                          FallbackValue='pack://application:,,,/Assets/placeholder.png'}"
+                         Stretch="Uniform"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center"/>
+                </Grid>
                 <TextBlock Text="{Binding Title}" HorizontalAlignment="Center"/>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                   <Button Content="✎" FontSize="16" Margin="5,0" 
                           Click="EditPlaylist_Click" Tag="{Binding}" 
                           ToolTip="Edit"/>
                   <Button Content="🗑" FontSize="16" Margin="5,0" 
-                          Click="DeletePlaylist_Click" Tag="{Binding}"
-                          Visibility="{Binding Id, Converter={StaticResource UnreleasedToVisibilityConverter}}"
-                          ToolTip="Delete"/>
+                          Click="DeletePlaylist_Click" Tag="{Binding}"/>
                 </StackPanel>
               </StackPanel>
             </Border>

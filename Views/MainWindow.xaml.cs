@@ -1,5 +1,5 @@
 ﻿using System;
-using System.IO; 
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -10,9 +10,11 @@ using BetterUnreleased.Views;
 using Microsoft.Win32;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Input;  
+using System.Windows.Input;
 using TagLib;
 using Microsoft.EntityFrameworkCore;
+using File = System.IO.File;
+using System.Net.Http;
 
 namespace BetterUnreleased
 {
@@ -29,11 +31,20 @@ namespace BetterUnreleased
         private Point startPoint;
         private bool isDragging = false;
 
+        private List<Song> originalPlaylist = new();
+        private List<Song> shuffledPlaylist = new();
+        private bool isShuffleOn = false;
+        private List<Song> playbackOrder = new();
+
+        private Point playlistStartPoint;
+        private bool isPlaylistDragging = false;
+
         public MainWindow()
         {
             try
             {
                 InitializeComponent();
+                TogglePlayPauseButton = (Button)FindName("TogglePlayPauseButton");
                 LoadPlaylists();
                 LoadSongs();
                 SongList.Drop += SongList_Drop;
@@ -41,6 +52,11 @@ namespace BetterUnreleased
                 mediaPlayer.MediaEnded += MediaPlayer_MediaEnded;
                 progressTimer.Tick += ProgressTimer_Tick;
                 SongList.PreviewMouseLeftButtonDown += SongList_PreviewMouseLeftButtonDown;
+
+                // Subscribe playlist drag/drop events:
+                PlaylistsGrid.PreviewMouseLeftButtonDown += PlaylistsGrid_PreviewMouseLeftButtonDown;
+                PlaylistsGrid.PreviewMouseMove += PlaylistsGrid_PreviewMouseMove;
+                PlaylistsGrid.Drop += PlaylistsGrid_Drop;
             }
             catch (Exception ex)
             {
@@ -138,7 +154,8 @@ namespace BetterUnreleased
                                 Artist = !string.IsNullOrEmpty(tagFile.Tag.FirstPerformer) 
                                     ? tagFile.Tag.FirstPerformer.Trim() 
                                     : "Unknown Artist",
-                                FilePath = file,
+                                // Copy the file into the corresponding playlist folder.
+                                FilePath = Helpers.FileManager.CopyMusicFileToPlaylist(file, /*playlistId*/ 1),
                                 Duration = tagFile.Properties.Duration.TotalSeconds
                             };
 
@@ -276,20 +293,51 @@ namespace BetterUnreleased
             }
         }
 
+        private void PlaySong(Song song)
+        {
+            mediaPlayer.Open(new Uri(song.FilePath));
+            mediaPlayer.Play();
+            isPlaying = true;
+            progressTimer.Start();
+            CurrentSongTitle.Text = song.Title;
+            TogglePlayPauseButton.Content = "⏸";
+        }
+
         private void SkipButton_Click(object sender, RoutedEventArgs e)
         {
-            var currentIndex = SongList.SelectedIndex;
-            if (currentIndex < SongList.Items.Count - 1)
+            if (isShuffleOn)
             {
-                SongList.SelectedIndex = currentIndex + 1;
+                if (SongList.SelectedItem is Song currentSong)
+                {
+                    int currentIndex = playbackOrder.FindIndex(s => s.Id == currentSong.Id);
+                    int nextIndex = currentIndex + 1;
+                    if (nextIndex >= playbackOrder.Count)
+                    {
+                        if (currentRepeatMode == RepeatMode.All)
+                            nextIndex = 0; // Loop back when in repeat-all
+                        else 
+                            return;
+                    }
+                    Song nextSong = playbackOrder[nextIndex];
+                    SongList.SelectedItem = nextSong;
+                    PlaySong(nextSong);
+                }
+            }
+            else
+            {
+                int currentIndex = SongList.SelectedIndex;
+                int nextIndex = currentIndex + 1;
+                if (nextIndex >= SongList.Items.Count)
+                {
+                    if (currentRepeatMode == RepeatMode.All)
+                        nextIndex = 0; // Loop back when in repeat-all
+                    else
+                        return;
+                }
+                SongList.SelectedIndex = nextIndex;
                 if (SongList.SelectedItem is Song nextSong)
                 {
-                    mediaPlayer.Open(new Uri(nextSong.FilePath));
-                    mediaPlayer.Play();
-                    isPlaying = true;
-                    progressTimer.Start();
-                    CurrentSongTitle.Text = nextSong.Title;
-                    TogglePlayPauseButton.Content = "⏸";
+                    PlaySong(nextSong);
                 }
             }
         }
@@ -373,10 +421,8 @@ namespace BetterUnreleased
                     try
                     {
                         db.Songs.Add(dialog.CreatedSong);
-                        
                         db.SaveChanges();
                         transaction.Commit();
-                        
                         LoadSongs();
                     }
                     catch (Exception ex)
@@ -400,35 +446,43 @@ namespace BetterUnreleased
                     mediaPlayer.Position = TimeSpan.Zero;
                     mediaPlayer.Play();
                     break;
-                    
+
                 case RepeatMode.All:
-                case RepeatMode.None:
-                    var currentIndex = SongList.SelectedIndex;
-                    var nextIndex = currentIndex + 1;
-                    
-                    if (nextIndex < SongList.Items.Count)
+                    if (isShuffleOn)
                     {
+                        if (SongList.SelectedItem is Song currentSong)
+                        {
+                            int currentIndex = playbackOrder.FindIndex(s => s.Id == currentSong.Id);
+                            int nextIndex = currentIndex + 1;
+                            if (nextIndex >= playbackOrder.Count)
+                            {
+                                nextIndex = 0;
+                            }
+                            Song nextSong = playbackOrder[nextIndex];
+                            SongList.SelectedItem = nextSong;
+                            PlaySong(nextSong);
+                        }
+                    }
+                    else
+                    {
+                        var currentIndex = SongList.SelectedIndex;
+                        int nextIndex = currentIndex + 1;
+                        if (nextIndex >= SongList.Items.Count)
+                        {
+                            nextIndex = 0;
+                        }
                         SongList.SelectedIndex = nextIndex;
                         if (SongList.SelectedItem is Song nextSong)
                         {
-                            mediaPlayer.Open(new Uri(nextSong.FilePath));
-                            mediaPlayer.Play();
-                            isPlaying = true;
-                            CurrentSongTitle.Text = nextSong.Title;
-                            TogglePlayPauseButton.Content = "⏸";
+                            PlaySong(nextSong);
                         }
                     }
-                    else if (currentRepeatMode == RepeatMode.All && SongList.Items.Count > 0)
+                    break;
+
+                case RepeatMode.None:
+                    if (SongList.SelectedIndex < SongList.Items.Count - 1)
                     {
-                        SongList.SelectedIndex = 0;
-                        if (SongList.SelectedItem is Song firstSong)
-                        {
-                            mediaPlayer.Open(new Uri(firstSong.FilePath));
-                            mediaPlayer.Play();
-                            isPlaying = true;
-                            CurrentSongTitle.Text = firstSong.Title;
-                            TogglePlayPauseButton.Content = "⏸";
-                        }
+                        SkipButton_Click(sender, new RoutedEventArgs());
                     }
                     else
                     {
@@ -442,24 +496,27 @@ namespace BetterUnreleased
 
         private void ShuffleButton_Click(object sender, RoutedEventArgs e)
         {
-            if (PlaylistsGrid.SelectedItem is Playlist selectedPlaylist)
+            if (PlaylistsGrid.SelectedItem is not Playlist selectedPlaylist)
             {
-                var shuffledSongs = db.Songs
-                    .Where(s => s.PlaylistId == selectedPlaylist.Id)
-                    .OrderBy(s => Guid.NewGuid())
-                    .ToList();
-                
-                SongList.ItemsSource = shuffledSongs;
-
-                if (shuffledSongs.Any())
-                {
-                    CurrentSongTitle.Text = shuffledSongs.First().Title;
-                    mediaPlayer.Open(new Uri(shuffledSongs.First().FilePath));
-                }
+                MessageBox.Show("Please select a playlist to shuffle.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            
+            originalPlaylist = db.Songs
+                .Where(s => s.PlaylistId == selectedPlaylist.Id)
+                .ToList();
+            
+            if (!isShuffleOn)
+            {
+                isShuffleOn = true;
+                playbackOrder = originalPlaylist.OrderBy(x => Guid.NewGuid()).ToList();
+                ShuffleButton.Background = new SolidColorBrush(Colors.LightBlue);
             }
             else
             {
-                MessageBox.Show("Please select a playlist to shuffle.", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                isShuffleOn = false;
+                playbackOrder.Clear();
+                ShuffleButton.ClearValue(Button.BackgroundProperty);
             }
         }
 
@@ -533,6 +590,52 @@ namespace BetterUnreleased
                         SongList.ItemsSource = songs;
                         
                         SongList.SelectedItem = droppedSong;
+                    }
+                }
+            }
+        }
+
+        private void PlaylistsGrid_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            playlistStartPoint = e.GetPosition(null);
+        }
+
+        private void PlaylistsGrid_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed && !isPlaylistDragging)
+            {
+                Point pos = e.GetPosition(null);
+                if (Math.Abs(pos.X - playlistStartPoint.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                    Math.Abs(pos.Y - playlistStartPoint.Y) > SystemParameters.MinimumVerticalDragDistance)
+                {
+                    if (sender is ListBoxItem item && item.DataContext is Playlist playlist)
+                    {
+                        isPlaylistDragging = true;
+                        DragDrop.DoDragDrop(item, playlist, DragDropEffects.Move);
+                        isPlaylistDragging = false;
+                    }
+                }
+            }
+        }
+
+        private void PlaylistsGrid_Drop(object sender, DragEventArgs e)
+        {
+            if (sender is ListBoxItem targetItem)
+            {
+                var droppedPlaylist = e.Data.GetData(typeof(Playlist)) as Playlist;
+                var targetPlaylist = targetItem.DataContext as Playlist;
+                if (droppedPlaylist != null && targetPlaylist != null && droppedPlaylist != targetPlaylist)
+                {
+                    var playlists = (PlaylistsGrid.ItemsSource as List<Playlist>) ?? new List<Playlist>();
+                    int removedIdx = playlists.IndexOf(droppedPlaylist);
+                    int targetIdx = playlists.IndexOf(targetPlaylist);
+                    if (removedIdx != -1 && targetIdx != -1)
+                    {
+                        playlists.RemoveAt(removedIdx);
+                        playlists.Insert(targetIdx, droppedPlaylist);
+                        PlaylistsGrid.ItemsSource = null;
+                        PlaylistsGrid.ItemsSource = playlists;
+                        PlaylistsGrid.SelectedItem = droppedPlaylist;
                     }
                 }
             }

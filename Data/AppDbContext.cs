@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using BetterUnreleased.Models;
 using System.IO;
+using BetterUnreleased.Helpers;
 
 namespace BetterUnreleased.Data
 {
@@ -8,6 +9,11 @@ namespace BetterUnreleased.Data
     {
         public DbSet<Song> Songs { get; set; }
         public DbSet<Playlist> Playlists { get; set; }
+
+        public AppDbContext()
+        {
+            FileManager.GetBaseFolder();
+        }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
         {
@@ -29,11 +35,9 @@ namespace BetterUnreleased.Data
                 entity.Property(e => e.FilePath).IsRequired();
                 entity.Property(e => e.Duration).IsRequired();
                 
-                // Add PlaylistId property with default value 1 (Unreleased)
                 entity.Property(e => e.PlaylistId)
                       .HasDefaultValue(1);
                 
-                // Relationship: each song belongs to one playlist.
                 entity.HasOne<Playlist>()
                       .WithMany(p => p.Songs)
                       .HasForeignKey(e => e.PlaylistId)
@@ -46,8 +50,21 @@ namespace BetterUnreleased.Data
                 entity.Property(e => e.Title).IsRequired();
             });
             
-            // Seed standard playlist "Unreleased" (with Id=1)
             modelBuilder.Entity<Playlist>().HasData(new Playlist { Id = 1, Title = "Unreleased", ThumbnailPath = "" });
+        }
+
+        public override int SaveChanges()
+        {
+            int result = base.SaveChanges();
+
+            foreach (var entry in ChangeTracker.Entries<Playlist>())
+            {
+                if (entry.State == EntityState.Added || entry.State == EntityState.Modified)
+                {
+                    string folder = FileManager.GetPlaylistFolder(entry.Entity.Id);
+                }
+            }
+            return result;
         }
     }
 }
