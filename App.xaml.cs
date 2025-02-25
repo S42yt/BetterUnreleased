@@ -1,6 +1,7 @@
 ﻿using System.Configuration;
 using System.Data;
 using System.Windows;
+using BetterUnreleased.Data;
 
 namespace better_unreleased;
 
@@ -9,5 +10,14 @@ namespace better_unreleased;
 /// </summary>
 public partial class App : Application
 {
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        base.OnStartup(e);
+        
+        using (var dbContext = new AppDbContext())
+        {
+            dbContext.EnsureDatabaseCreated();
+        }
+    }
 }
 

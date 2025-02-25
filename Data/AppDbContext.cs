@@ -13,7 +13,20 @@ namespace BetterUnreleased.Data
         public AppDbContext()
         {
             FileManager.GetBaseFolder();
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            string projectPath = Directory.GetCurrentDirectory();
+            string databasePath = Path.Combine(projectPath, "Database", "BetterUnreleased.db");
             
+            Directory.CreateDirectory(Path.Combine(projectPath, "Database"));
+            
+            optionsBuilder.UseSqlite($"Data Source={databasePath}");
+        }
+
+        public void EnsureDatabaseCreated()
+        {
             try
             {
                 if (!Database.CanConnect())
@@ -35,16 +48,6 @@ namespace BetterUnreleased.Data
             {
                 throw new Exception($"Failed to initialize database: {ex.Message}", ex);
             }
-        }
-
-        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        {
-            string projectPath = Directory.GetCurrentDirectory();
-            string databasePath = Path.Combine(projectPath, "Database", "BetterUnreleased.db");
-            
-            Directory.CreateDirectory(Path.Combine(projectPath, "Database"));
-            
-            optionsBuilder.UseSqlite($"Data Source={databasePath}");
         }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
