@@ -1,19 +1,15 @@
-using BetterUnreleased.Models;
-using BetterUnreleased.Data;
 using Microsoft.Win32;
 using System;
 using System.Windows;
 using System.Windows.Media.Imaging;
-using Microsoft.EntityFrameworkCore; // Add this
-using System.Linq; // Add this
+using BetterUnreleased.Models;
 
 namespace BetterUnreleased.Views
 {
     public partial class EditPlaylistDialog : Window
     {
-        private readonly Playlist playlist;
+        private Playlist playlist;
         private string? selectedThumbnailPath;
-        private readonly AppDbContext db = new(); // Add db context
 
         public EditPlaylistDialog(Playlist playlist)
         {
@@ -54,20 +50,6 @@ namespace BetterUnreleased.Views
             }
             
             DialogResult = true;
-        }
-
-        public void EnsureUnreleasedPlaylistExists()
-        {
-            var playlists = db.Playlists.ToList();
-            if (!playlists.Any())
-            {
-                db.Playlists.Add(new Playlist 
-                { 
-                    Title = "Unreleased",
-                    ThumbnailPath = ""
-                });
-                db.SaveChanges();
-            }
         }
     }
 }

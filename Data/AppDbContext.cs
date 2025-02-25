@@ -2,7 +2,6 @@ using Microsoft.EntityFrameworkCore;
 using BetterUnreleased.Models;
 using System.IO;
 using BetterUnreleased.Helpers;
-using System.Linq; // Add this
 
 namespace BetterUnreleased.Data
 {
@@ -26,7 +25,11 @@ namespace BetterUnreleased.Data
                     Database.Migrate();
                 }
 
-                EnsureUnreleasedPlaylistExists();
+                if (!Playlists.Any())
+                {
+                    Playlists.Add(new Playlist { Id = 1, Title = "Unreleased", ThumbnailPath = "" });
+                    SaveChanges();
+                }
             }
             catch (Exception ex)
             {
@@ -84,20 +87,6 @@ namespace BetterUnreleased.Data
                 }
             }
             return result;
-        }
-
-        public void EnsureUnreleasedPlaylistExists()
-        {
-            var playlists = Playlists.ToList();
-            if (!playlists.Any())
-            {
-                Playlists.Add(new Playlist 
-                { 
-                    Title = "Unreleased",
-                    ThumbnailPath = ""
-                });
-                SaveChanges();
-            }
         }
     }
 }
