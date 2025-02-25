@@ -53,7 +53,6 @@ namespace BetterUnreleased
                 progressTimer.Tick += ProgressTimer_Tick;
                 SongList.PreviewMouseLeftButtonDown += SongList_PreviewMouseLeftButtonDown;
 
-                // Subscribe playlist drag/drop events:
                 PlaylistsGrid.PreviewMouseLeftButtonDown += PlaylistsGrid_PreviewMouseLeftButtonDown;
                 PlaylistsGrid.PreviewMouseMove += PlaylistsGrid_PreviewMouseMove;
                 PlaylistsGrid.Drop += PlaylistsGrid_Drop;
@@ -311,39 +310,16 @@ namespace BetterUnreleased
 
         private void SkipButton_Click(object sender, RoutedEventArgs e)
         {
-            if (isShuffleOn)
+            if (sender is Button)
             {
-                if (SongList.SelectedItem is Song currentSong)
+                var currentIndex = SongList.SelectedIndex;
+                if (currentIndex < SongList.Items.Count - 1)
                 {
-                    int currentIndex = playbackOrder.FindIndex(s => s.Id == currentSong.Id);
-                    int nextIndex = currentIndex + 1;
-                    if (nextIndex >= playbackOrder.Count)
+                    SongList.SelectedIndex = currentIndex + 1;
+                    if (SongList.SelectedItem is Song nextSong)
                     {
-                        if (currentRepeatMode == RepeatMode.All)
-                            nextIndex = 0; // Loop back when in repeat-all
-                        else 
-                            return;
+                        PlaySong(nextSong);
                     }
-                    Song nextSong = playbackOrder[nextIndex];
-                    SongList.SelectedItem = nextSong;
-                    PlaySong(nextSong);
-                }
-            }
-            else
-            {
-                int currentIndex = SongList.SelectedIndex;
-                int nextIndex = currentIndex + 1;
-                if (nextIndex >= SongList.Items.Count)
-                {
-                    if (currentRepeatMode == RepeatMode.All)
-                        nextIndex = 0; // Loop back when in repeat-all
-                    else
-                        return;
-                }
-                SongList.SelectedIndex = nextIndex;
-                if (SongList.SelectedItem is Song nextSong)
-                {
-                    PlaySong(nextSong);
                 }
             }
         }
@@ -432,12 +408,10 @@ namespace BetterUnreleased
                     using var transaction = db.Database.BeginTransaction();
                     try
                     {
-                        // Copy the file to the selected playlist's folder
                         string newFilePath = Helpers.FileManager.CopyMusicFileToPlaylist(
                             dialog.CreatedSong.FilePath, 
                             selectedPlaylist.Id);
                         
-                        // Update the song with the new file path and playlist ID
                         dialog.CreatedSong.FilePath = newFilePath;
                         dialog.CreatedSong.PlaylistId = selectedPlaylist.Id;
                         
@@ -445,7 +419,6 @@ namespace BetterUnreleased
                         db.SaveChanges();
                         transaction.Commit();
                         
-                        // Refresh the song list to show the new song
                         PlaylistsGrid_SelectionChanged(PlaylistsGrid, null);
                     }
                     catch (Exception ex)
@@ -543,23 +516,20 @@ namespace BetterUnreleased
             }
         }
 
-        private void PlaylistsGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void PlaylistsGrid_SelectionChanged(object sender, SelectionChangedEventArgs? e)
         {
-            if (PlaylistsGrid.SelectedItem is Playlist selectedPlaylist)
+            try 
             {
-                var playlistSongs = db.Songs
-                    .Where(s => s.PlaylistId == selectedPlaylist.Id)
-                    .ToList();
-
-                foreach (var song in playlistSongs)
+                if (PlaylistsGrid.SelectedItem is Playlist selectedPlaylist)
                 {
-                    if (string.IsNullOrEmpty(song.ThumbnailPath) && !string.IsNullOrEmpty(selectedPlaylist.ThumbnailPath))
-                    {
-                        song.ThumbnailPath = selectedPlaylist.ThumbnailPath;
-                    }
+                    var songs = db.Songs.Where(s => s.PlaylistId == selectedPlaylist.Id).ToList();
+                    SongList.ItemsSource = songs;
+                    originalPlaylist = songs;
                 }
-
-                SongList.ItemsSource = playlistSongs;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error loading songs: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

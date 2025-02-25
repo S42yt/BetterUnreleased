@@ -2,6 +2,8 @@
 
 a music player to play local files aka unreleased songs
 
+**NOTE**: With this project i dont support Piracy. Only the use of local files will be possible to play music in this version. 
+
 ### Download and Building
 
 
