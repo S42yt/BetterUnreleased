@@ -80,16 +80,41 @@ namespace BetterUnreleased.Data
 
         public override int SaveChanges()
         {
-            int result = base.SaveChanges();
-
             foreach (var entry in ChangeTracker.Entries<Playlist>())
             {
                 if (entry.State == EntityState.Added || entry.State == EntityState.Modified)
                 {
-                    string folder = FileManager.GetPlaylistFolder(entry.Entity.Id);
+                    var playlist = entry.Entity;
+                    string playlistFolder = FileManager.GetPlaylistFolder(playlist.Id);
+                    
+                    if (!string.IsNullOrEmpty(playlist.ThumbnailPath) && 
+                        !playlist.ThumbnailPath.StartsWith(playlistFolder))
+                    {
+                        string newThumbnailPath = FileManager.CopyThumbnailToPlaylist(
+                            playlist.ThumbnailPath, playlist.Id);
+                        playlist.ThumbnailPath = newThumbnailPath;
+                    }
                 }
             }
-            return result;
+            
+            foreach (var entry in ChangeTracker.Entries<Song>())
+            {
+                if (entry.State == EntityState.Added || entry.State == EntityState.Modified)
+                {
+                    var song = entry.Entity;
+                    string playlistFolder = FileManager.GetPlaylistFolder(song.PlaylistId);
+                    
+                    if (!string.IsNullOrEmpty(song.ThumbnailPath) && 
+                        !song.ThumbnailPath.StartsWith(playlistFolder))
+                    {
+                        string newThumbnailPath = FileManager.CopyThumbnailToPlaylist(
+                            song.ThumbnailPath, song.PlaylistId);
+                        song.ThumbnailPath = newThumbnailPath;
+                    }
+                }
+            }
+            
+            return base.SaveChanges();
         }
     }
 }

@@ -53,7 +53,6 @@ namespace BetterUnreleased
                 progressTimer.Tick += ProgressTimer_Tick;
                 SongList.PreviewMouseLeftButtonDown += SongList_PreviewMouseLeftButtonDown;
 
-                // Subscribe playlist drag/drop events:
                 PlaylistsGrid.PreviewMouseLeftButtonDown += PlaylistsGrid_PreviewMouseLeftButtonDown;
                 PlaylistsGrid.PreviewMouseMove += PlaylistsGrid_PreviewMouseMove;
                 PlaylistsGrid.Drop += PlaylistsGrid_Drop;
@@ -120,12 +119,51 @@ namespace BetterUnreleased
             {
                 if (playlist.Id == 1)
                 {
-                    MessageBox.Show("The Unreleased playlist cannot be deleted.");
+                    MessageBox.Show("The Unreleased playlist cannot be deleted.", "Warning", 
+                        MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
-                db.Playlists.Remove(playlist);
-                db.SaveChanges();
-                LoadPlaylists();
+
+                var result = MessageBox.Show($"Are you sure you want to delete the playlist '{playlist.Title}' and all its songs?", 
+                    "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    
+                if (result == MessageBoxResult.Yes)
+                {
+                    try
+                    {
+                        var songsToDelete = db.Songs.Where(s => s.PlaylistId == playlist.Id).ToList();
+                        
+                        using var transaction = db.Database.BeginTransaction();
+                        try
+                        {
+                            db.Songs.RemoveRange(songsToDelete);
+                            
+                            db.Playlists.Remove(playlist);
+                            
+                            db.SaveChanges();
+                            transaction.Commit();
+                            
+                            string playlistFolder = Helpers.FileManager.GetPlaylistFolder(playlist.Id);
+                            if (Directory.Exists(playlistFolder))
+                            {
+                                Directory.Delete(playlistFolder, true);
+                            }
+                            
+                            LoadPlaylists();
+                            SongList.ItemsSource = null;
+                        }
+                        catch (Exception ex)
+                        {
+                            transaction.Rollback();
+                            throw new Exception($"Error deleting playlist from database: {ex.Message}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error deleting playlist: {ex.Message}", "Error", 
+                            MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
             }
         }
 
@@ -218,27 +256,44 @@ namespace BetterUnreleased
 
         private string? GetThumbnailPath(TagLib.IPicture? picture, string? fallbackThumbnailPath)
         {
-            if (picture != null)
+            if (picture != null && PlaylistsGrid.SelectedItem is Playlist selectedPlaylist)
             {
-                using (var ms = new System.IO.MemoryStream(picture.Data.Data))
+                try
                 {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.StreamSource = ms;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-
-                    var encoder = new PngBitmapEncoder();
-                    encoder.Frames.Add(BitmapFrame.Create(bitmap));
-
-                    var thumbnailPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"{Guid.NewGuid()}.png");
-                    using (var fileStream = new System.IO.FileStream(thumbnailPath, System.IO.FileMode.Create))
+                    using (var ms = new System.IO.MemoryStream(picture.Data.Data))
                     {
-                        encoder.Save(fileStream);
-                    }
+                        var bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.StreamSource = ms;
+                        bitmap.EndInit();
+                        bitmap.Freeze();
 
-                    return thumbnailPath;
+                        var encoder = new PngBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+
+                        // Create a temporary file
+                        string tempThumbnailPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"{Guid.NewGuid()}.png");
+                        using (var fileStream = new System.IO.FileStream(tempThumbnailPath, System.IO.FileMode.Create))
+                        {
+                            encoder.Save(fileStream);
+                        }
+
+                        // Copy to the proper thumbnails folder
+                        string permanentPath = Helpers.FileManager.CopyThumbnailToPlaylist(tempThumbnailPath, selectedPlaylist.Id);
+                        
+                        // Delete temp file after copying
+                        if (System.IO.File.Exists(tempThumbnailPath))
+                        {
+                            System.IO.File.Delete(tempThumbnailPath);
+                        }
+                        
+                        return permanentPath;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error extracting thumbnail: {ex.Message}", "Thumbnail Error", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
 
@@ -320,7 +375,7 @@ namespace BetterUnreleased
                     if (nextIndex >= playbackOrder.Count)
                     {
                         if (currentRepeatMode == RepeatMode.All)
-                            nextIndex = 0; // Loop back when in repeat-all
+                            nextIndex = 0; 
                         else 
                             return;
                     }
@@ -336,7 +391,7 @@ namespace BetterUnreleased
                 if (nextIndex >= SongList.Items.Count)
                 {
                     if (currentRepeatMode == RepeatMode.All)
-                        nextIndex = 0; // Loop back when in repeat-all
+                        nextIndex = 0;
                     else
                         return;
                 }
@@ -432,12 +487,10 @@ namespace BetterUnreleased
                     using var transaction = db.Database.BeginTransaction();
                     try
                     {
-                        // Copy the file to the selected playlist's folder
                         string newFilePath = Helpers.FileManager.CopyMusicFileToPlaylist(
                             dialog.CreatedSong.FilePath, 
                             selectedPlaylist.Id);
                         
-                        // Update the song with the new file path and playlist ID
                         dialog.CreatedSong.FilePath = newFilePath;
                         dialog.CreatedSong.PlaylistId = selectedPlaylist.Id;
                         
@@ -445,7 +498,6 @@ namespace BetterUnreleased
                         db.SaveChanges();
                         transaction.Commit();
                         
-                        // Refresh the song list to show the new song
                         PlaylistsGrid_SelectionChanged(PlaylistsGrid, null);
                     }
                     catch (Exception ex)

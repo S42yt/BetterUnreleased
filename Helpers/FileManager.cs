@@ -26,14 +26,36 @@ namespace BetterUnreleased.Helpers
             return playlistFolder;
         }
 
+        public static string GetSongsFolder(int playlistId)
+        {
+            string playlistFolder = GetPlaylistFolder(playlistId);
+            string songsFolder = Path.Combine(playlistFolder, "Songs");
+            if (!Directory.Exists(songsFolder))
+            {
+                Directory.CreateDirectory(songsFolder);
+            }
+            return songsFolder;
+        }
+
+        public static string GetThumbnailsFolder(int playlistId)
+        {
+            string playlistFolder = GetPlaylistFolder(playlistId);
+            string thumbnailsFolder = Path.Combine(playlistFolder, "Thumbnails");
+            if (!Directory.Exists(thumbnailsFolder))
+            {
+                Directory.CreateDirectory(thumbnailsFolder);
+            }
+            return thumbnailsFolder;
+        }
+
         public static string CopyMusicFileToPlaylist(string sourceFile, int playlistId)
         {
             if (!File.Exists(sourceFile))
                 throw new FileNotFoundException("Source music file not found", sourceFile);
 
-            string playlistFolder = GetPlaylistFolder(playlistId);
+            string songsFolder = GetSongsFolder(playlistId);
             string fileName = Path.GetFileName(sourceFile);
-            string destination = Path.Combine(playlistFolder, fileName);
+            string destination = Path.Combine(songsFolder, fileName);
 
             int counter = 1;
             string fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
@@ -41,7 +63,29 @@ namespace BetterUnreleased.Helpers
             while (File.Exists(destination))
             {
                 fileName = $"{fileNameWithoutExt}_{counter++}{extension}";
-                destination = Path.Combine(playlistFolder, fileName);
+                destination = Path.Combine(songsFolder, fileName);
+            }
+
+            File.Copy(sourceFile, destination, false);
+            return destination;
+        }
+
+        public static string CopyThumbnailToPlaylist(string sourceFile, int playlistId)
+        {
+            if (!File.Exists(sourceFile))
+                throw new FileNotFoundException("Source thumbnail file not found", sourceFile);
+
+            string thumbnailsFolder = GetThumbnailsFolder(playlistId);
+            string fileName = Path.GetFileName(sourceFile);
+            string destination = Path.Combine(thumbnailsFolder, fileName);
+
+            int counter = 1;
+            string fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+            string extension = Path.GetExtension(fileName);
+            while (File.Exists(destination))
+            {
+                fileName = $"{fileNameWithoutExt}_{counter++}{extension}";
+                destination = Path.Combine(thumbnailsFolder, fileName);
             }
 
             File.Copy(sourceFile, destination, false);
