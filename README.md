@@ -1,4 +1,4 @@
-# Better Unreleased (Early Access)
+# Better Unreleased (Early Access) Depracted (v2 Soon)
 
 a music player to play local files aka unreleased songs
 
